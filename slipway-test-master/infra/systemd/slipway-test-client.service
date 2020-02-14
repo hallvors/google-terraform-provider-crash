@@ -1,0 +1,14 @@
+[Unit]
+Description=Slipway-test client interface
+
+[Service]
+Environment=PORT=4466
+User=slipway-test
+Restart=always
+Type=simple
+
+ExecStart=/usr/bin/yarn run start
+WorkingDirectory=/srv/www/slipway-test/
+
+[Install]
+WantedBy=multi-user.target

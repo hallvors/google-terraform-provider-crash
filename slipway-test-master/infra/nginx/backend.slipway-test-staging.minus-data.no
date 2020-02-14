@@ -1,0 +1,29 @@
+server {
+	listen 8080 default_server;
+	listen [::]:8080 default_server;
+
+	server_tokens off;
+
+	server_name frontend.slipway-test-staging.minus-data.no backend.slipway-test-staging.minus-data.no;
+
+	location /tools/crontest {
+		proxy_pass http://localhost:4477/tools/crontest;
+	}
+
+	location /gcp_healthcheck {
+		proxy_pass http://localhost:4477/gcp_healthcheck;
+	}
+
+	location / {
+		if ($http_x_forwarded_proto != "https") {
+			return 301 https://$host$request_uri;
+		}
+
+		auth_basic_user_file /srv/www/slipway-test/config/htpasswd;
+		auth_basic "Slipway-test admin";
+
+		proxy_pass http://localhost:4477/;
+	}
+
+	add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+}

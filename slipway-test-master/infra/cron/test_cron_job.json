@@ -1,0 +1,11 @@
+{
+	"description": "This is a test of CRON jobs - cloud scheduling setup",
+	"url": "/tools/crontest",
+	"method": "GET",
+	"headers": {
+		"Content-type": "application/json",
+	},
+	"schedule": "10 10 * * *",
+	"tokenfile": "/config/local-secrets/secrets.yml",
+	"tokenname": "example_secret"
+}

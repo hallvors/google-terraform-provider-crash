@@ -1,0 +1,4 @@
+*.key files are automatically installed on host with Ansible
+*.list files are expected to contain references to repositories, these are also automatically handled with Ansible
+
+apt-requirements.txt is a plain text file listing packages to install with apt-get

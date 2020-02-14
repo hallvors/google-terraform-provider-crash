@@ -1,0 +1,11 @@
+[Unit]
+Description=Cloud SQL Proxy
+After=network.target
+
+[Service]
+# Path /etc/gcloud-sql-proxy-servicekey.json is hardcoded in slipway/ansible/roles/install_packages/tasks/main.yaml
+ExecStart=/usr/local/bin/cloud_sql_proxy.linux.amd64 -credential_file=/etc/gcloud-sql-proxy-servicekey.json -instances={{google_project}}:{{google_region}}:{{project_appname}}-{{env}}-database-instance=tcp:5432
+Restart=always
+
+[Install]
+WantedBy=multi-user.target

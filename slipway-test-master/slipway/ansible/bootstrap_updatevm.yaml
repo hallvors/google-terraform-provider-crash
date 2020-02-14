@@ -1,0 +1,7 @@
+---
+- hosts: all
+  become: true
+  remote_user: "{{ lookup('env','USER') }}"
+  roles:
+    - install_packages
+    - prep_folders

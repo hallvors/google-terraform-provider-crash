@@ -1,0 +1,13 @@
+- name: Install deps
+  shell: yarn install --production
+  args:
+    chdir: "{{ app_directory }}"
+  become_user: "{{ project_appname }}"
+
+- name: Build assets
+  shell: yarn run build
+  args:
+    chdir: "{{ app_directory }}"
+  environment:
+    NODE_ENV: "{{env}}"
+  become_user: "{{ project_appname }}"

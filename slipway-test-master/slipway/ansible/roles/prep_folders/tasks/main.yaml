@@ -1,0 +1,9 @@
+- name: Create /srv/www
+  file: path=/srv/www state=directory mode=755
+
+- name: Create user
+  user: name={{ project_appname }} comment="sjzero role user"
+
+- name: Create project folder
+  file: path={{ app_directory }} group=www-data owner={{ project_appname }} mode=755 state=directory
+

@@ -1,0 +1,34 @@
+- cronvar:
+    name: MAILTO
+    value: hallvord@minus.no
+    user: "{{ project_appname }}"
+
+- name: Load variables from config file
+  include_vars:
+    file: "{{ cron_config_file }}"
+
+- name: Load variables from secrets file
+  include_vars:
+    file: "{{ local_directory }}{{ tokenfile }}"
+    name: tokens
+
+- name: Collect headers
+  command: 
+    "echo -H \\'{{ item.key }}: {{item.value}}\\'"
+  loop: "{{ headers | dict2items }}"
+  register: str_headers
+
+# These tasks use curl and HTTP requests to trigger actions,
+# rather than runing local scripts. This is on purpose because
+# we may want to transition to using Google cloud scheduler later.
+- name: "CRON job {{ description }}"
+  cron:
+    name: "{{ description }}({{ cron_config_file | basename }})"
+    job: "timeout -k 40s 5m curl -X POST -d '{{ body | default('') | to_json }}' -H 'Token: {{ tokens[tokenname] }}' {{ str_headers.results | map(attribute='stdout') | join(' ') }} https://{{ admin_server_name }}{{ url }} "
+    minute: "{{ schedule.split(' ')[0] | default('*') }}"
+    hour: "{{ schedule.split(' ')[1] | default('*') }}"
+    day: "{{ schedule.split(' ')[2] | default('*') }}"
+    month: "{{ schedule.split(' ')[3] | default('*') }}"
+    weekday: "{{ schedule.split(' ')[4] | default('*') }}"
+    user: "{{ project_appname }}"
+ 

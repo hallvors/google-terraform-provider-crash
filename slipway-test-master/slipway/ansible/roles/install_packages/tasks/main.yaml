@@ -1,0 +1,46 @@
+- name: Ensure the system can use the HTTPS transport for APT
+  stat:
+    path: /usr/lib/apt/methods/https
+  register: apt_https_transport
+
+- name: Install HTTPS transport for APT
+  apt:
+    pkg: apt-transport-https
+    state: installed
+  when: not apt_https_transport.stat.exists
+
+- name: Import GPG keys from app infra/apt
+  apt_key:
+    data: "{{ lookup('file', '{{ item }}') }}"
+  with_fileglob:
+    - "{{ app_infra_apt_dir }}/*.key"
+
+- name: Add repository
+  apt_repository:
+    repo: "{{ lookup('file', '{{ item }}') }}"
+    state: present
+  with_fileglob:
+    - "{{ app_infra_apt_dir }}/*.list"
+
+
+- name: Install dependencies with apt-get
+  apt: name={{item}} state=latest update_cache=yes
+  loop: "{{ lookup('file', '{{ app_infra_apt_dir }}/apt-requirements.txt', errors='warn').splitlines() }}"
+
+- name: Update already installed software
+  apt:
+    name: "*"
+    state: latest
+    autoremove: yes
+
+- name: Install the Google SQL proxy thingy
+  get_url:
+    url: https://dl.google.com/cloudsql/cloud_sql_proxy.linux.amd64
+    dest: /usr/local/bin/cloud_sql_proxy.linux.amd64
+    mode: '755'
+
+- name: Set up auth for the Google SQL proxy
+  copy:
+    src: "{{ service_account_file }}"
+    dest: /etc/gcloud-sql-proxy-servicekey.json
+    remote_src: no

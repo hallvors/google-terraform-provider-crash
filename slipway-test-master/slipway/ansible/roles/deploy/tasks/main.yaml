@@ -1,0 +1,125 @@
+- name: Update repo
+  become: yes
+  become_user: "{{ project_appname }}"
+  git:
+    repo: "{{ github_repo }}"
+    version: "{{ branch }}"
+    dest: "{{ app_directory }}"
+    force: no
+    track_submodules: no
+  register: gitupdate
+
+# Order is significant: do the secret configurations first, post-checkout might depend on it
+- name: Look for secrets meant for Ansible in slipway/config/local-secrets
+  include_vars:
+    dir: "{{ local_directory }}/slipway/config/local-secrets"
+    ignore_unknown_extensions: True
+    extensions:
+      - yml
+      - yaml
+- name: Look for secrets meant for Ansible in project's config/local-secrets
+  include_vars:
+    dir: "{{ local_directory }}/config/local-secrets"
+    ignore_unknown_extensions: True
+    extensions:
+      - yml
+      - yaml
+
+- name: Check for infra/config-templates
+  stat:
+    path: "{{ app_directory }}/infra/config-templates/"
+  register: infraconfigtempl
+
+- name: "Transform config templates found in infra"
+  template:
+    src: "{{ item }}"
+    dest: "{{ app_directory }}/config/{{ item | basename | regex_replace('\\.j2$')  }}"
+  with_fileglob:
+    - "{{ local_directory }}/infra/config-templates/*.j2"
+  when: infraconfigtempl.stat.exists == True
+
+# systemd config also needs to happen before post-checkout
+- name: Check for infra/systemd
+  stat:
+    path: "{{ app_directory }}/infra/systemd/"
+  register: infrasystemd
+
+- name: Copy systemd config if found in infra
+  copy:
+    src: "{{ item }}"
+    dest: "/etc/systemd/system/"
+  with_fileglob:
+    - "{{ local_directory }}/infra/systemd/*.service"
+  when: infrasystemd.stat.exists == True
+
+- name: Transform systemd templates found in infra
+  template:
+    src: "{{ item }}"
+    dest: "/etc/systemd/system/{{ item | basename | regex_replace('\\.j2$')  }}"
+  with_fileglob:
+    - "{{ local_directory }}/infra/systemd/*.j2"
+  when: infrasystemd.stat.exists == True
+
+- name: List files in systemd remote
+  find:
+    paths: "{{ app_directory }}/infra/systemd"
+  register: systemd_files
+  when: infrasystemd.stat.exists == True
+
+- name: Enable systemd services
+  become: yes
+  systemd:
+    name: "{{ item.path | basename | regex_replace('\\.j2$') }}"
+    enabled: yes
+    state: restarted
+  with_items:
+    - "{{ systemd_files.files }}"
+  when: infrasystemd.stat.exists == True
+
+- name: Reload systemd
+  systemd:
+    daemon_reload: yes
+
+- name: Check for infra/nginx
+  stat:
+    path: "{{ app_directory }}/infra/nginx/"
+  register: infranginx
+
+- name: Transform or copy nginx config if found in infra
+  ignore_errors: yes
+  template:
+    src: "{{ item }}"
+    dest: "/etc/nginx/sites-available/{{ item | basename | regex_replace('\\.j2$')  }}"
+  with_fileglob:
+    - "{{ local_directory }}/infra/nginx/*"
+  when: infranginx.stat.exists == True
+
+- name: Check if Nginx default file exists
+  ignore_errors: yes
+  stat:
+    path: "/etc/nginx/sites-enabled/default"
+  register: nginxdefault
+
+- name: Remove Nginx default config if it exists
+  file:
+    path: "/etc/nginx/sites-enabled/default"
+    state: absent
+  when: nginxdefault.stat.exists
+
+- name: Mark project as enabled in Nginx config
+  file:
+    state: link
+    src: "/etc/nginx/sites-available/{{ item | basename | regex_replace('\\.j2$')  }}"
+    dest: "/etc/nginx/sites-enabled/{{ item | basename | regex_replace('\\.j2$')  }}"
+  with_fileglob:
+    - "{{ local_directory }}/infra/nginx/*"
+  when: infranginx.stat.exists == True
+
+- name: Check for project-defined post-checkout role
+  stat:
+    path: "{{ app_directory }}/infra/ansible/roles/post_checkout"
+  register: post_checkout
+
+- name: Run project-defined post-checkout tasks
+  import_tasks: "{{ local_directory }}/infra/ansible/roles/post_checkout/tasks/main.yaml"
+  when: post_checkout.stat.exists == True
